@@ -1,0 +1,5 @@
+# Ignore compiled Python files
+*.pyc
+.DS_Store
+.idea
+algos.iml
