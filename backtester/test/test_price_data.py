@@ -2,7 +2,7 @@ import unittest
 
 from pandas import Timestamp
 
-import data_loader
+import data_loader as dl
 from price_data import PriceData
 from test.test_sources import DATA_DIR, SYMBOL_LIST
 
@@ -29,7 +29,7 @@ class TestPriceData(unittest.TestCase):
             result["TEST2"].to_dict())
 
     def _get_test_data(self):
-        return data_loader.load_price_data(DATA_DIR, SYMBOL_LIST)
+        return dl.load_price_data(DATA_DIR, SYMBOL_LIST)
 
 if __name__ == '__main__':
     unittest.main()

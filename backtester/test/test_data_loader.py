@@ -5,7 +5,8 @@ from pandas import Timestamp
 
 import data_loader as dl
 
-from test.test_sources import *
+from test.test_sources import DATA_DIR, SYMBOL_LIST, SYMBOL_LIST_FILE, \
+    TEST_CSV_FILE, TEST_REVERSED_CSV_FILE
 
 
 class TestDataLoader(unittest.TestCase):
@@ -22,14 +23,14 @@ class TestDataLoader(unittest.TestCase):
     def test_load_symbol_data(self):
         df = dl._load_symbol_data(TEST_CSV_FILE, 'Date')
         # we don't won't index to be returned with each result
-        self.assertListEqual(
-            [{'Adj Close': 13107.48,
+        self.assertDictEqual(
+            {'Adj Close': 13107.48,
               'Close': 13107.48,
               'High': 13144.81,
               'Low': 13081.27,
               'Open': 13103.46,
-              'Volume': 446252369.0}],
-            df['2012-08-29'].to_dict('records'))
+              'Volume': 446252369.0},
+            df.ix['2012-08-29'].to_dict())
         self.assertDictEqual(
             {Timestamp('2012-08-28'): 13102.99,
              Timestamp('2012-08-29'): 13107.48,

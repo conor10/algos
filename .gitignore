@@ -1,5 +1,8 @@
 # Ignore compiled Python files
 *.pyc
 .DS_Store
+# Ignore IntelliJ project files
 .idea
-algos.iml
+*.iml
+# Ignore open spreadsheet files
+~$*.xlsx

@@ -35,6 +35,5 @@ def _load_symbol_data(filename, index=0):
         logging.debug(
             'Input data in descending order for file {}, reversing'.format(
                 filename))
-        return df.sort_index()
-    else:
-        return df
+        df.sort_index(inplace=True)
+    return df
