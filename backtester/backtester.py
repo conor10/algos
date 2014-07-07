@@ -56,7 +56,7 @@ def run_backtest(symbol, close_price_data):
     signals = generate_moving_average_signals(np_close)
     pnl = calculate_pnl(np_close, signals)
     returns = calculate_returns(pnl)
-    sharpe_ratio = calculate_sharpe_ratio(returns, len(np_close))
+    sharpe_ratio = calculate_sharpe_ratio(returns)
 
     # The Chan implementation only holds positions for single days
     # i.e. For a multi-day position we must re-enter into it each day
