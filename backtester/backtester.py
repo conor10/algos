@@ -10,6 +10,13 @@ import data_loader
 import data_sources
 import init_logger
 from price_data import PriceData
+import utils
+
+
+_PLOT_SERIES = True
+
+# We want to enable printing of full numpy arrays
+np.set_printoptions(threshold=np.nan)
 
 
 class Side(object):
@@ -17,17 +24,16 @@ class Side(object):
     SELL = -1
     NONE = 0
 
-# We want to enable printing of full numpy arrays
-np.set_printoptions(threshold=np.nan)
-
 
 def perform_backtests():
     #symbols = data_loader.load_symbol_list(data_sources.SP_500_2012)
-    symbols = ['BLK']
+    symbols = ['ACN']
     symbol_data = data_loader.load_price_data(data_sources.DATA_DIR, symbols)
 
+    start = utils.create_date('2011-01-01')
+
     price_data = PriceData(symbol_data)
-    close_price_data = price_data.get_price_data(symbols, 'Adj Close')
+    close_price_data = price_data.get_price_data(symbols, 'Adj Close', start)
 
     sharpe_ratios = []
 
@@ -40,17 +46,24 @@ def perform_backtests():
 
 
 def run_backtest(symbol, close_price_data):
-    # TODO: What should be done with NaN values? Ignore of ffill/bfill? ffill
-    np_close = close_price_data[symbol].fillna(0).as_matrix()
+    pd_close = close_price_data[symbol]
+    pd_close.fillna(method='ffill', inplace=True)
+    pd_close.fillna(method='bfill', inplace=True)
 
-    # signals = generate_moving_average_signals(np_close)
-    # pnl = calculate_pnl(np_close, signals)
-    # returns = calculate_returns(pnl)
-    # sharpe_ratio = caclulate_sharpe_ratio(pnl)
+    np_close = pd_close.as_matrix()
 
-    signals = generate_moving_average_signals_chan(np_close)
-    pnl = calculate_pnl_chan(np_close, signals)
-    sharpe_ratio = caclulate_sharpe_ratio(pnl)
+    # TODO: Use our optimiser here
+    signals = generate_moving_average_signals(np_close)
+    pnl = calculate_pnl(np_close, signals)
+    returns = calculate_returns(pnl)
+    sharpe_ratio = calculate_sharpe_ratio(returns, len(np_close))
+
+    # The Chan implementation only holds positions for single days
+    # i.e. For a multi-day position we must re-enter into it each day
+    signals_chan = generate_moving_average_signals_chan(np_close)
+    positions_chan = calculate_positions_chan(np_close, signals_chan)
+    returns_chan = calculate_returns(positions_chan)
+    sharpe_ratio_chan = calculate_sharpe_ratio(pnl)
 
     logging.debug('PnL account: [Close, PnL]\n{}'
                   .format(np.matrix([np_close, pnl]).T))
@@ -59,14 +72,25 @@ def run_backtest(symbol, close_price_data):
     return sharpe_ratio
 
 
-def generate_moving_average_signals(close):
+def generate_moving_average_signals(close, lookback=20, entry_z_score=2,
+                                    exit_z_score=0):
+    """Limitations:
+    1. Only a single trend can be entered into at a time
+    2. Orders are treated as GTD
+    """
 
-    lookback = 5
+    signals = np.zeros(close.shape, dtype=np.int)
+    positions = np.empty(close.shape, dtype=np.float)
+    positions[:] = np.nan
 
-    signals = np.zeros(close.shape, dtype=np.float)
+    upper, middle, lower = talib.BBANDS(close,
+                                        timeperiod=lookback,
+                                        nbdevup=entry_z_score,
+                                        nbdevdn=entry_z_score,
+                                        matype=MA_Type.SMA)
 
-    upper, middle, lower = talib.BBANDS(close, timeperiod=lookback,
-                                        matype=MA_Type.T3)
+    z_score_upper = middle + exit_z_score * ((upper - middle) / entry_z_score)
+    z_score_lower = middle + -exit_z_score * ((middle - lower) / entry_z_score)
 
     """
     Upper and lower bands are price targets
@@ -84,26 +108,34 @@ def generate_moving_average_signals(close):
 
     for i in range(1, len(close)):
 
-        if not(up_trend and down_trend):
+        if not(up_trend or down_trend):
             if break_upwards(close, upper, i):
                 signals[i] = Side.SELL
+                positions[i] = Side.SELL
                 down_trend = True
 
             elif break_downwards(close, lower, i):
                 signals[i] = Side.BUY
+                positions[i] = Side.BUY
                 up_trend = True
 
         elif down_trend:
-            if break_downwards(close, middle, i):
+            if break_downwards(close, z_score_upper, i):
                 signals[i] = Side.BUY
+                positions[i] = Side.NONE
                 down_trend = False
+            else:
+                positions[i] = Side.SELL
 
         elif up_trend:
-            if break_upwards(close, middle, i):
+            if break_upwards(close, z_score_lower, i):
                 signals[i] = Side.SELL
+                positions[i] = Side.NONE
                 up_trend = False
+            else:
+                positions[i] = Side.BUY
 
-    #plot_series(close, upper, middle, lower, signals)
+    plot_series(close, upper, middle, lower, positions)
     return signals
 
 
@@ -115,17 +147,14 @@ def break_downwards(close, band, index):
     return close[index-1] >= band[index-1] and close[index] < band[index]
 
 
-def generate_moving_average_signals_chan(close):
-
-    lookback = 5
-    entry_z_score = 2
-    exit_z_score = 0
+def generate_moving_average_signals_chan(close, lookback=20, entry_z_score=2,
+                                         exit_z_score=0):
 
     upper, middle, lower = talib.BBANDS(close,
                                         timeperiod=lookback,
                                         nbdevup=entry_z_score,
                                         nbdevdn=entry_z_score,
-                                        matype=MA_Type.T3)
+                                        matype=MA_Type.SMA)
 
     moving_std = (upper - middle) / entry_z_score
     z_score = (close - middle) / moving_std
@@ -170,6 +199,9 @@ def lag(data):
 
 
 def plot_series(close, upper, middle, lower, signals):
+    if not _PLOT_SERIES:
+        return
+
     plt.clf()
     plt.plot(close, label='Close', color='black')
     plt.plot(upper, label='Upper', color='red')
@@ -181,7 +213,7 @@ def plot_series(close, upper, middle, lower, signals):
     sell = np.copy(close)
     sell[signals != Side.SELL] = np.nan
     exit = np.copy(close)
-    exit[get_exit_signals(signals) != Side.NONE] = np.nan
+    exit[signals != Side.NONE] = np.nan
     plt.plot(buy, 'ro', label='Buy', color='orange')
     plt.plot(sell, 'ro', label='Sell', color='purple')
     plt.plot(exit, 'ro', label='Exit', color='black')
@@ -189,31 +221,12 @@ def plot_series(close, upper, middle, lower, signals):
     plt.show()
 
 
-def get_exit_signals(signals):
-    for i in range(1, len(signals)):
-        # We use 2 to differentiate between 0, -1, 1 values in signals
-        if (signals[i-1] == Side.BUY or signals[i-1] == Side.SELL) \
-                and signals[i] == Side.NONE:
-            signals[i] = 2
-
-    signals[signals != 2] = np.nan
-    signals[signals == 2] = Side.NONE
-    return signals
-
-
 def calculate_pnl(close, signals):
     return np.cumsum(close * signals)
 
 
-def calculate_pnl_chan(close, signals):
-    positions = close * signals
-    lag_close = lag(close)
-
-    lag_positions = lag(positions)
-
-    daily_pnl = lag_positions * ((close - lag_close) / lag_close)
-    daily_pnl[np.isnan(daily_pnl)] = 0.
-    return daily_pnl
+def calculate_positions_chan(close, signals):
+    return close * signals
 
 
 def calculate_returns(pnl):
@@ -228,7 +241,7 @@ def calculate_returns(pnl):
     return returns
 
 
-def caclulate_sharpe_ratio(returns, duration=252):
+def calculate_sharpe_ratio(returns, duration=252):
     return math.sqrt(duration) * np.mean(returns) / np.std(returns)
 
 

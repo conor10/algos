@@ -37,7 +37,7 @@ class TestBacktester(unittest.TestCase):
         pnl = self._generate_pnl()
         returns = bt.calculate_returns(pnl)
         self.assertEqual(-2.5095619671562686,
-                         bt.caclulate_sharpe_ratio(returns))
+                         bt.calculate_sharpe_ratio(returns))
 
     def test_order_results_desc(self):
         self.assertEqual(
@@ -55,12 +55,6 @@ class TestBacktester(unittest.TestCase):
         utils.assert_array_equal(
             np.array([0, 1, 2, 3, 4]),
             bt.lag(np.array([1, 2, 3, 4, 5])))
-
-    def test_get_exit_signals(self):
-        signals = np.array([0., 1., 0., -1., -1., 0., 1., 0.])
-        utils.assert_array_equal(
-            np.array([np.nan, np.nan, 0, np.nan, np.nan, 0, np.nan, 0]),
-            bt.get_exit_signals(signals))
 
     def _generate_pnl(self):
         return bt.calculate_pnl(PRICES, SIGNALS1)
