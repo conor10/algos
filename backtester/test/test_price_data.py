@@ -1,5 +1,7 @@
 import unittest
 
+import numpy as np
+import pandas as pd
 from pandas import Timestamp
 
 import data_loader as dl
@@ -56,6 +58,12 @@ class TestPriceData(unittest.TestCase):
         self.assertEqual(2, len(result))
         self.assertEqual(DATE2, result.index[0].strftime(DATE_FORMAT))
         self.assertEqual(DATE3, result.index[-1].strftime(DATE_FORMAT))
+
+    def test_fill_missing_values(self):
+        df = pd.DataFrame({'price': [np.nan, 5., 6., np.nan, 7., np.nan]})
+        result = PriceData._fill_missing_values(df)
+        self.assertListEqual([[5.], [5.], [6.], [6.], [7.], [7]],
+                             result.values.tolist())
 
     def _get_test_data(self):
         return dl.load_price_data(DATA_DIR, SYMBOL_LIST)

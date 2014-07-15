@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import logging
 import math
 
@@ -6,17 +7,14 @@ import numpy as np
 import talib
 from talib import MA_Type
 
-import data_loader
-import data_sources
-import init_logger
-from price_data import PriceData
 import utils
 
 
-_PLOT_SERIES = True
-
 # We want to enable printing of full numpy arrays
 np.set_printoptions(threshold=np.nan)
+
+
+_PLOT_SERIES = False
 
 
 class Side(object):
@@ -25,180 +23,23 @@ class Side(object):
     NONE = 0
 
 
-def perform_backtests():
-    #symbols = data_loader.load_symbol_list(data_sources.SP_500_2012)
-    symbols = ['ACN']
-    symbol_data = data_loader.load_price_data(data_sources.DATA_DIR, symbols)
+def _calculate_returns(pnl):
+    lagged_pnl = utils.lag(pnl)
+    returns = (pnl - lagged_pnl) / lagged_pnl
 
-    start = utils.create_date('2011-01-01')
-
-    price_data = PriceData(symbol_data)
-    close_price_data = price_data.get_price_data(symbols, 'Adj Close', start)
-
-    sharpe_ratios = []
-
-    for symbol in symbols:
-        sharpe_ratio = run_backtest(symbol, close_price_data)
-        sharpe_ratios.append((symbol, sharpe_ratio))
-
-    sharpe_ratios_sorted = order_results_desc(sharpe_ratios)
-    display_results(sharpe_ratios_sorted)
+    # All values prior to our position opening in pnl will have a
+    # value of inf. This is due to division by 0.0
+    returns[np.isinf(returns)] = 0.
+    # Additionally, any values of 0 / 0 will produce NaN
+    returns[np.isnan(returns)] = 0.
+    return returns
 
 
-def run_backtest(symbol, close_price_data):
-    pd_close = close_price_data[symbol]
-    pd_close.fillna(method='ffill', inplace=True)
-    pd_close.fillna(method='bfill', inplace=True)
-
-    np_close = pd_close.as_matrix()
-
-    # TODO: Use our optimiser here
-    signals = generate_moving_average_signals(np_close)
-    pnl = calculate_pnl(np_close, signals)
-    returns = calculate_returns(pnl)
-    sharpe_ratio = calculate_sharpe_ratio(returns)
-
-    # The Chan implementation only holds positions for single days
-    # i.e. For a multi-day position we must re-enter into it each day
-    signals_chan = generate_moving_average_signals_chan(np_close)
-    positions_chan = calculate_positions_chan(np_close, signals_chan)
-    returns_chan = calculate_returns(positions_chan)
-    sharpe_ratio_chan = calculate_sharpe_ratio(pnl)
-
-    logging.debug('PnL account: [Close, PnL]\n{}'
-                  .format(np.matrix([np_close, pnl]).T))
-    logging.debug("Annualised Sharpe Ratio: {}".format(sharpe_ratio))
-
-    return sharpe_ratio
+def _calculate_sharpe_ratio(returns, duration=252):
+    return math.sqrt(duration) * np.mean(returns) / np.std(returns)
 
 
-def generate_moving_average_signals(close, lookback=20, entry_z_score=2,
-                                    exit_z_score=0):
-    """Limitations:
-    1. Only a single trend can be entered into at a time
-    2. Orders are treated as GTD
-    """
-
-    signals = np.zeros(close.shape, dtype=np.int)
-    positions = np.empty(close.shape, dtype=np.float)
-    positions[:] = np.nan
-
-    upper, middle, lower = talib.BBANDS(close,
-                                        timeperiod=lookback,
-                                        nbdevup=entry_z_score,
-                                        nbdevdn=entry_z_score,
-                                        matype=MA_Type.SMA)
-
-    z_score_upper = middle + exit_z_score * ((upper - middle) / entry_z_score)
-    z_score_lower = middle + -exit_z_score * ((middle - lower) / entry_z_score)
-
-    """
-    Upper and lower bands are price targets
-    If we cross a band, we buy/sell and hold this position until we break
-    through the middle band
-
-    Price touches the lower band => Buy
-    Sell when we touch the middle band
-
-    Price touches the upper band => Sell
-    Buy when we touch the middle band
-    """
-    up_trend = False
-    down_trend = False
-
-    for i in range(1, len(close)):
-
-        if not(up_trend or down_trend):
-            if break_upwards(close, upper, i):
-                signals[i] = Side.SELL
-                positions[i] = Side.SELL
-                down_trend = True
-
-            elif break_downwards(close, lower, i):
-                signals[i] = Side.BUY
-                positions[i] = Side.BUY
-                up_trend = True
-
-        elif down_trend:
-            if break_downwards(close, z_score_upper, i):
-                signals[i] = Side.BUY
-                positions[i] = Side.NONE
-                down_trend = False
-            else:
-                positions[i] = Side.SELL
-
-        elif up_trend:
-            if break_upwards(close, z_score_lower, i):
-                signals[i] = Side.SELL
-                positions[i] = Side.NONE
-                up_trend = False
-            else:
-                positions[i] = Side.BUY
-
-    plot_series(close, upper, middle, lower, positions)
-    return signals
-
-
-def break_upwards(close, band, index):
-    return close[index-1] <= band[index-1] and close[index] > band[index]
-
-
-def break_downwards(close, band, index):
-    return close[index-1] >= band[index-1] and close[index] < band[index]
-
-
-def generate_moving_average_signals_chan(close, lookback=20, entry_z_score=2,
-                                         exit_z_score=0):
-
-    upper, middle, lower = talib.BBANDS(close,
-                                        timeperiod=lookback,
-                                        nbdevup=entry_z_score,
-                                        nbdevdn=entry_z_score,
-                                        matype=MA_Type.SMA)
-
-    moving_std = (upper - middle) / entry_z_score
-    z_score = (close - middle) / moving_std
-
-    long_entry = z_score < -entry_z_score
-    long_exit = z_score >= -exit_z_score
-
-    short_entry = z_score > entry_z_score
-    short_exit = z_score <= exit_z_score
-
-    long_signals = np.empty(close.shape, dtype=np.float)
-    long_signals[:] = np.nan
-    long_signals[0] = 0.
-    short_signals = np.empty(close.shape, dtype=np.float)
-    short_signals[:] = np.nan
-    short_signals[0] = 0.
-
-    long_signals[long_entry] = Side.BUY
-    long_signals[long_exit] = Side.NONE
-    long_signals = ffill(long_signals)
-
-    short_signals[short_entry] = Side.SELL
-    short_signals[short_exit] = Side.NONE
-    short_signals = ffill(short_signals)
-
-    positions = long_signals + short_signals
-    plot_series(close, upper, middle, lower, positions)
-    return positions
-
-
-def ffill(data):
-    for i in range(1, len(data)):
-        if np.isnan(data[i]):
-            data[i] = data[i-1]
-    return data
-
-
-def lag(data):
-    lag = np.roll(data, 1)
-    lag[0] = 0.
-    return lag
-
-
-def plot_series(close, upper, middle, lower, signals):
+def _plot_series(close, upper, middle, lower, signals):
     if not _PLOT_SERIES:
         return
 
@@ -221,39 +62,192 @@ def plot_series(close, upper, middle, lower, signals):
     plt.show()
 
 
-def calculate_pnl(close, signals):
-    return np.cumsum(close * signals)
+def _print_results(np_close, positions, sharpe_ratio):
+    logging.debug('Positions account: [Close, PnL]\n{}'
+                  .format(np.matrix([np_close, positions]).T))
+    logging.debug("Annualised Sharpe Ratio: {}".format(sharpe_ratio))
 
 
-def calculate_positions_chan(close, signals):
-    return close * signals
+class SharpeBacktest(object):
+
+    def __init__(self):
+        pass
+
+    def run(self, np_close):
+        self._validate_params()
+        signals = self._run_strategy(np_close)
+        positions = self._calculate_positions(np_close, signals)
+        returns = _calculate_returns(positions)
+        sharpe_ratio = _calculate_sharpe_ratio(returns)
+        _print_results(np_close, positions, sharpe_ratio)
+        return sharpe_ratio
+
+    @abstractmethod
+    def _validate_params(self):
+        pass
+
+    @abstractmethod
+    def _run_strategy(self, close):
+        pass
+
+    @abstractmethod
+    def _calculate_positions(self, close, signals):
+        pass
 
 
-def calculate_returns(pnl):
-    lagged_pnl = lag(pnl)
-    returns = (pnl - lagged_pnl) / lagged_pnl
-
-    # All values prior to our position opening in pnl will have a value of inf
-    # this is due to division by 0.0
-    returns[np.isinf(returns)] = 0.
-    # Additionally, any values of 0 / 0 will produce NaN
-    returns[np.isnan(returns)] = 0.
-    return returns
+class ParameterException(Exception):
+    """ Should any parameters passed to our constructors be invalid,
+    we raise this
+    """
+    pass
 
 
-def calculate_sharpe_ratio(returns, duration=252):
-    return math.sqrt(duration) * np.mean(returns) / np.std(returns)
+class MovingAverageBacktest(SharpeBacktest):
+
+    def __init__(self, lookback=20, entry_z_score=2,
+                 exit_z_score=0):
+        super(MovingAverageBacktest, self).__init__()
+
+        self.lookback = lookback
+        self.entry_z_score = entry_z_score
+        self.exit_z_score = exit_z_score
+
+    def _validate_params(self):
+        if not self._z_scores_valid(self.entry_z_score, self.exit_z_score):
+            raise ParameterException(
+                'Invalid z scores: entry_z_score={}, exit_z_score={}'
+                .format(self.entry_z_score, self.exit_z_score))
+
+    def _run_strategy(self, close):
+        """Limitations:
+        1. Only a single trend can be entered into at a time
+        2. Orders are treated as GTD
+        3. We don't support multiple moving averages for crossovers
+        """
+
+        signals = np.zeros(close.shape, dtype=np.int)
+        positions = np.empty(close.shape, dtype=np.float)
+        positions[:] = np.nan
+
+        upper, middle, lower = talib.BBANDS(close,
+                                            timeperiod=self.lookback,
+                                            nbdevup=self.entry_z_score,
+                                            nbdevdn=self.entry_z_score,
+                                            matype=MA_Type.SMA)
+
+        z_score_upper = middle + self.exit_z_score * \
+                                  ((upper - middle) / self.entry_z_score)
+        z_score_lower = middle + -self.exit_z_score * \
+                                 ((middle - lower) / self.entry_z_score)
+
+        """
+        Upper and lower bands are price targets
+        If we cross a band, we buy/sell and hold this position until we break
+        through the middle band
+
+        Price touches the lower band => Buy
+        Sell when we touch the middle band
+
+        Price touches the upper band => Sell
+        Buy when we touch the middle band
+        """
+        up_trend = False
+        down_trend = False
+
+        for i in range(1, len(close)):
+
+            if not(up_trend or down_trend):
+                if self._break_upwards(close, upper, i):
+                    signals[i] = Side.SELL
+                    positions[i] = Side.SELL
+                    down_trend = True
+
+                elif self._break_downwards(close, lower, i):
+                    signals[i] = Side.BUY
+                    positions[i] = Side.BUY
+                    up_trend = True
+
+            elif down_trend:
+                if self._break_downwards(close, z_score_upper, i):
+                    signals[i] = Side.BUY
+                    positions[i] = Side.NONE
+                    down_trend = False
+                else:
+                    positions[i] = Side.SELL
+
+            elif up_trend:
+                if self._break_upwards(close, z_score_lower, i):
+                    signals[i] = Side.SELL
+                    positions[i] = Side.NONE
+                    up_trend = False
+                else:
+                    positions[i] = Side.BUY
+
+        _plot_series(close, upper, middle, lower, positions)
+        return signals
+
+    @staticmethod
+    def _z_scores_valid(entry_z_score, exit_z_score):
+        return entry_z_score > exit_z_score
+
+    @staticmethod
+    def _break_upwards(close, band, index):
+        return close[index-1] <= band[index-1] and close[index] > band[index]
+
+    @staticmethod
+    def _break_downwards(close, band, index):
+        return close[index-1] >= band[index-1] and close[index] < band[index]
+
+    @staticmethod
+    def _calculate_positions(close, signals):
+        return np.cumsum(close * signals)
 
 
-def order_results_desc(result_set):
-    return sorted(result_set, reverse=True, key=lambda tup: tup[1])
+class ChanBacktest(SharpeBacktest):
+    """
+    The Chan implementation only holds positions for single days
+    i.e. For a multi-day position we must re-enter into it each day
+    """
+    def _run_strategy(self, close, lookback=20,
+                                             entry_z_score=2, exit_z_score=0):
 
+        upper, middle, lower = talib.BBANDS(close,
+                                            timeperiod=lookback,
+                                            nbdevup=entry_z_score,
+                                            nbdevdn=entry_z_score,
+                                            matype=MA_Type.SMA)
 
-def display_results(results):
-    for (sym, value) in results:
-        logging.info("{}: {}".format(sym, value))
+        moving_std = (upper - middle) / entry_z_score
+        z_score = (close - middle) / moving_std
 
+        long_entry = z_score < -entry_z_score
+        long_exit = z_score >= -exit_z_score
 
-if __name__ == '__main__':
-    init_logger.setup()
-    perform_backtests()
+        short_entry = z_score > entry_z_score
+        short_exit = z_score <= exit_z_score
+
+        long_signals = np.empty(close.shape, dtype=np.float)
+        long_signals[:] = np.nan
+        long_signals[0] = 0.
+        short_signals = np.empty(close.shape, dtype=np.float)
+        short_signals[:] = np.nan
+        short_signals[0] = 0.
+
+        long_signals[long_entry] = Side.BUY
+        long_signals[long_exit] = Side.NONE
+        long_signals = utils.ffill(long_signals)
+
+        short_signals[short_entry] = Side.SELL
+        short_signals[short_exit] = Side.NONE
+        short_signals = utils.ffill(short_signals)
+
+        positions = long_signals + short_signals
+        _plot_series(close, upper, middle, lower, positions)
+        return positions
+
+    def _validate_params(self):
+        pass
+
+    @staticmethod
+    def _calculate_positions(close, signals):
+        return close * signals
