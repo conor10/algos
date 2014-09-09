@@ -10,6 +10,11 @@ def create_date(date):
     return datetime.strptime(date, DATE_FORMAT)
 
 
+def day_count(start, end):
+    delta = end - start
+    return delta.days
+
+
 def get_max_vector(array, index=0):
     return array[np.nanargmax(array[:, index])]
 

@@ -1,3 +1,8 @@
+numpy
+pandas
+matplotlib
+TA-Lib
 nose
 mock
 pyyaml
+# Need to install cython & TA-lib c code

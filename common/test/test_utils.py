@@ -6,10 +6,16 @@ from numpy.testing import utils as np_utils
 
 import utils
 
+
 class TestUtils(unittest.TestCase):
     def test_create_date(self):
         self.assertEqual(datetime.datetime(2014, 7, 10),
                          utils.create_date('2014-07-10'))
+
+    def test_day_count(self):
+        start = datetime.datetime(2014, 7, 10)
+        end = datetime.datetime(2014, 8, 10)
+        self.assertEqual(31, utils.day_count(start, end))
 
     def test_get_max(self):
         data = np.arange(9).reshape(3, 3)
