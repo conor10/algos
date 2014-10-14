@@ -17,6 +17,17 @@ class TestUtils(unittest.TestCase):
         end = datetime.datetime(2014, 8, 10)
         self.assertEqual(31, utils.day_count(start, end))
 
+    def test_work_day_count(self):
+        start = datetime.datetime(2014, 7, 10)
+        end = datetime.datetime(2014, 8, 10)
+        self.assertEqual(22, utils.work_day_count(start, end))
+
+    def test_work_day_delta(self):
+        base_date = datetime.datetime(2014, 8, 10)
+        expected = datetime.datetime(2014, 7, 10)
+        delta = -22
+        self.assertEquals(expected, utils.work_day_delta(base_date, delta))
+
     def test_get_max(self):
         data = np.arange(9).reshape(3, 3)
         np_utils.assert_equal(np.array([6, 7, 8]), utils.get_max_vector(data))
@@ -35,6 +46,14 @@ class TestUtils(unittest.TestCase):
         np_utils.assert_array_equal(
             np.array([0, 1, 2, 3, 4]),
             utils.lag(np.array([1, 2, 3, 4, 5])))
+
+    def test_calculate_returns(self):
+        returns = utils.calculate_returns(self._generate_pnl())
+        utils.assert_allclose(
+            [0., 0., 0., 0.83333333, 0., -0.36363636,
+             0.85714286, 0., -0.69230769, -1.75],
+            returns, rtol=1e-7)
+
 
 if __name__ == '__main__':
     unittest.main()

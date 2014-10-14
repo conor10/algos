@@ -2,6 +2,7 @@ import unittest
 
 from option import Option
 from option import Type
+import option
 
 
 class OptionTests(unittest.TestCase):
@@ -37,6 +38,29 @@ class OptionTests(unittest.TestCase):
         self.assertEqual(0.627841271868722, option.d2)
         self.assertEquals(0.80859937290009221, option.price)
 
+    def test_implied_volatility_call_with_dividend(self):
+        implied_volatility = \
+            option.implied_volatility(Type.CALL, 40.0, 42.0, 4.71, 0.5,
+                                      risk_free_rate=0.05, dividend_rate=0.03)
+        self.assertAlmostEqual(0.3, implied_volatility, places=3)
+
+    def test_implied_volatility_put_with_dividend(self):
+        implied_volatility = \
+            option.implied_volatility(Type.PUT, 40.0, 42.0, 2.34, 0.5,
+                                      risk_free_rate=0.05, dividend_rate=0.03)
+        self.assertAlmostEqual(0.3, implied_volatility, places=3)
+
+    def test_implied_volatility_call_no_dividend(self):
+        implied_volatility = \
+            option.implied_volatility(Type.CALL, 40.0, 42.0, 4.76, 0.5,
+                                      risk_free_rate=0.1)
+        self.assertAlmostEqual(0.2, implied_volatility, places=3)
+
+    def test_implied_volatility_put_no_dividend(self):
+        implied_volatility = \
+            option.implied_volatility(Type.PUT, 40.0, 42.0, 0.81, 0.5,
+                                      risk_free_rate=0.1)
+        self.assertAlmostEqual(0.2, implied_volatility, places=3)
 
 if __name__ == '__main__':
     unittest.main()

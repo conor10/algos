@@ -2,11 +2,12 @@ import unittest
 
 import pandas as pd
 from pandas import Timestamp
+from pandas.util.testing import assert_frame_equal
 
 import data_loader as dl
 
-from test.test_sources import DATA_DIR, SYMBOL_LIST, SYMBOL_LIST_FILE, \
-    TEST_CSV_FILE, TEST_REVERSED_CSV_FILE
+from test_sources import CHAINS_DIR, DATA_DIR, SYMBOL_LIST, \
+    SYMBOL_LIST_FILE, TEST_CSV_FILE, TEST_REVERSED_CSV_FILE
 
 
 class TestDataLoader(unittest.TestCase):
@@ -49,8 +50,41 @@ class TestDataLoader(unittest.TestCase):
         self.assertEqual(pd.DataFrame, type(price_data['TEST2']))
         self.assertEqual(pd.DataFrame, type(price_data['TEST3']))
 
+    def test_load_option_data(self):
+        symbols = ['AAPL', 'MSFT']
+        option_data = dl.load_option_data('SP500', CHAINS_DIR, symbols)
+        print(option_data)
+        self.assertEqual(2, len(option_data))
+
+        aapl_call = option_data['AAPL']['20140908']['20140912']['C']
+        aapl_put = option_data['AAPL']['20140908']['20140912']['P']
+        self.assertEqual(49, len(aapl_call))
+        self.assertEqual(49, len(aapl_put))
+        self.assert_frame_different(aapl_call, aapl_put)
+
+        msft_call = option_data['MSFT']['20140909']['20160115']['C']
+        msft_put = option_data['MSFT']['20140909']['20160115']['P']
+        self.assertEqual(17, len(msft_call))
+        self.assertEqual(17, len(msft_put))
+        self.assert_frame_different(msft_call, msft_put)
+
+
+    def assert_frame_different(self, left, right):
+        try:
+            assert_frame_equal(left, right)
+            raise TestException
+        except AssertionError:
+            pass
+        except TestException:
+            self.fail()
+
+
     def _get_symbol_list(self):
         return dl.load_symbol_list(SYMBOL_LIST_FILE)
+
+
+class TestException(Exception):
+    pass
 
 
 if __name__ == '__main__':

@@ -4,6 +4,7 @@ from math import log
 from math import sqrt
 
 from scipy.stats import norm as N
+from scipy import optimize
 
 
 class Type(object):
@@ -66,10 +67,13 @@ class Option(object):
     @property
     def d1(self):
         if self._d1 is None:
-            self._d1 = (log(self.S / self.K) +
-                    (self.r - self.q + (self.sigma ** 2) / 2 ) *
-                    (self.T - self.t)) / \
-                (self.sigma * sqrt(self.T - self.t))
+            try:
+                self._d1 = (log(self.S / self.K) +
+                        (self.r - self.q + (self.sigma ** 2) / 2 ) *
+                        (self.T - self.t)) / \
+                    (self.sigma * sqrt(self.T - self.t))
+            except ZeroDivisionError:
+                self._d1 = 0
         return self._d1
 
     @property
@@ -77,3 +81,35 @@ class Option(object):
         if self._d2 is None:
             self._d2 = self.d1 - self.sigma * sqrt(self.T - self.t)
         return self._d2
+
+
+def calc_option_price(type, strike_price, underlying_price, volatility,
+                      days_to_expiry, start_time=0.0, risk_free_rate=0.0,
+                      dividend_rate=0.0):
+    option = Option(type, strike_price, underlying_price, volatility,
+                    days_to_expiry, start_time, risk_free_rate, dividend_rate)
+    return option.price
+
+
+def implied_volatility(type, strike_price, underlying_price, option_price,
+                       days_to_expiry, start_time=0.0, risk_free_rate=0.0,
+                       dividend_rate=0.0):
+
+    f = lambda sigma : \
+        calc_option_price(type, strike_price, underlying_price, sigma,
+                          days_to_expiry, start_time, risk_free_rate,
+                          dividend_rate) \
+        - option_price
+
+    try:
+        result = optimize.brentq(f, 0.000, 5.0)
+    except ValueError:
+        print('Unable to determine solution for calculation: '
+              '[strike_price: {}, underlying_price: {}, option_price: {}, '
+              'days_to_exp: {}]'
+              .format(strike_price, underlying_price, option_price,
+                      days_to_expiry))
+        result = -1
+    return result
+
+

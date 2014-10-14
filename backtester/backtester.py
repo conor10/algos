@@ -10,6 +10,7 @@ from talib import MA_Type
 import utils
 
 
+
 # We want to enable printing of full numpy arrays
 np.set_printoptions(threshold=np.nan)
 
@@ -21,18 +22,6 @@ class Side(object):
     BUY = 1
     SELL = -1
     NONE = 0
-
-
-def _calculate_returns(pnl):
-    lagged_pnl = utils.lag(pnl)
-    returns = (pnl - lagged_pnl) / lagged_pnl
-
-    # All values prior to our position opening in pnl will have a
-    # value of inf. This is due to division by 0.0
-    returns[np.isinf(returns)] = 0.
-    # Additionally, any values of 0 / 0 will produce NaN
-    returns[np.isnan(returns)] = 0.
-    return returns
 
 
 def _calculate_sharpe_ratio(returns, duration=252):
@@ -64,7 +53,7 @@ def _plot_series(close, upper, middle, lower, signals):
 
 def _print_results(np_close, positions, sharpe_ratio):
     logging.debug('Positions account: [Close, PnL]\n{}'
-                  .format(np.matrix([np_close, positions]).T))
+                 .format(np.matrix([np_close, positions]).T))
     logging.debug("Annualised Sharpe Ratio: {}".format(sharpe_ratio))
 
 
@@ -77,7 +66,7 @@ class SharpeBacktest(object):
         self._validate_params()
         signals = self._run_strategy(np_close)
         positions = self._calculate_positions(np_close, signals)
-        returns = _calculate_returns(positions)
+        returns = utils.calculate_returns(positions)
         sharpe_ratio = _calculate_sharpe_ratio(returns)
         _print_results(np_close, positions, sharpe_ratio)
         return sharpe_ratio

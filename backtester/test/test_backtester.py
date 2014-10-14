@@ -13,20 +13,13 @@ SIGNALS2 = signals2 = np.array([1, 1, 0, 1, 0, -1, 1, 0, -1, 0])
 
 class TestBacktester(unittest.TestCase):
 
-    def test_calculate_returns(self):
-        returns = backtester._calculate_returns(self._generate_pnl())
-        utils.assert_allclose(
-            [0., 0., 0., 0.83333333, 0., -0.36363636,
-             0.85714286, 0., -0.69230769, -1.75],
-            returns, rtol=1e-7)
-
     def test_calculate_sharpe_ratio(self):
         pnl = self._generate_pnl()
-        returns = backtester._calculate_returns(pnl)
+        returns = utils.calculate_returns(pnl)
         self.assertEqual(-2.5095619671562686,
                          backtester._calculate_sharpe_ratio(returns))
 
-    def _generate_pnl(self):
+    def generate_pnl(self):
         return MovingAverageBacktest._calculate_positions(PRICES, SIGNALS1)
 
 
