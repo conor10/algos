@@ -6,3 +6,5 @@ nose
 mock
 pyyaml
 # Need to install cython & TA-lib c code
+# For AR(1) data generation
+scikits.statsmodels
