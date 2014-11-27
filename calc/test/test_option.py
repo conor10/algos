@@ -62,5 +62,36 @@ class OptionTests(unittest.TestCase):
                                       risk_free_rate=0.1)
         self.assertAlmostEqual(0.2, implied_volatility, places=3)
 
+    # taken from p92 of Joshi
+    def test_greeks_joshi(self):
+        call = Option(Type.CALL, 110.0, 100.0, 0.1, 1.0, 0.0, 0.05, 0.0)
+
+        self.assertAlmostEqual(2.174, call.price, places=3)
+        self.assertAlmostEqual(0.343, call.delta, places=3)
+        # Book value is 36.77
+        self.assertAlmostEqual(36.78, call.vega, places=2)
+        self.assertAlmostEqual(0.0368, call.gamma, places=4)
+
+        put = Option(Type.PUT, 110.0, 100.0, 0.1, 1.0, 0.0, 0.05, 0.0)
+
+        self.assertAlmostEqual(6.81, put.price, places=2)
+        self.assertAlmostEqual(-0.657, put.delta, places=3)
+        # Book value is 36.77
+        self.assertAlmostEqual(36.78, put.vega, places=2)
+        self.assertAlmostEqual(0.0368, put.gamma, places=4)
+
+        print('rho: {}'.format(call.rho))
+        print('theta: {}'.format(call.theta))
+
+    # taken from p383 onwards of Hull
+    def test_greeks_hull(self):
+        call = Option(Type.CALL, 50.0, 49.0, 0.2, 0.3846, 0.0, 0.05, 0.0)
+
+        self.assertAlmostEqual(0.522, call.delta, places=3)
+        self.assertAlmostEqual(-4.31, call.theta, places=2)
+        self.assertAlmostEqual(0.066, call.gamma, places=2)
+        self.assertAlmostEqual(12.1, call.vega, places=1)
+        self.assertAlmostEqual(8.91, call.rho, places=2)
+
 if __name__ == '__main__':
     unittest.main()
