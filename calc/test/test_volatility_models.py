@@ -1,7 +1,6 @@
 import unittest
 
 import numpy.testing as ntest
-import numpy as np
 import pandas as pd
 
 import volatility_models as vol
@@ -14,6 +13,17 @@ class TestVolatilityModels(unittest.TestCase):
 
     def setUp(self):
         self.xls_file = pd.ExcelFile(FILENAME)
+
+    def test_population_std_dev(self):
+        """
+        Row 474 of sheet needed 30 day calculation filled in
+        """
+        data = self.xls_file.parse('raw volatility cone',
+                               header=1, index_col=0, parse_cols='B:H')
+        data.sort_index(inplace=True)
+
+        volatility = vol.population_std_dev(data['Adj. Close'], 30)
+        ntest.assert_array_almost_equal(data['30 day vol'], volatility)
 
     def test_parkinson_std_dev(self):
         data = self.xls_file.parse('Parkinson volatility cone',
@@ -61,7 +71,7 @@ class TestVolatilityModels(unittest.TestCase):
                                         (volatility_sinclair[29:]))
 
 
-    def test_sinclair_ang_zhang_std_dev(self):
+    def test_sinclair_yang_zhang_std_dev(self):
         """
         Mistakes:
         1. LogCC uses regular instead of adjusted close price for 30 day close

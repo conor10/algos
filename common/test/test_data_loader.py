@@ -5,9 +5,9 @@ from pandas import Timestamp
 from pandas.util.testing import assert_frame_equal
 
 import data_loader as dl
-
-from test_sources import CHAINS_DIR, DATA_DIR, SYMBOL_LIST, \
-    SYMBOL_LIST_FILE, TEST_CSV_FILE, TEST_REVERSED_CSV_FILE
+from test_sources import CHAINS_DIR, DATA_DIR, INTRADAY_DIR, \
+    INTRADAY_SP500_DIR, SYMBOL_LIST, SYMBOL_LIST_FILE, TEST_CSV_FILE, \
+    TEST_REVERSED_CSV_FILE
 
 
 class TestDataLoader(unittest.TestCase):
@@ -22,7 +22,7 @@ class TestDataLoader(unittest.TestCase):
                          dl._get_price_file('test', 'someDir'))
 
     def test_load_symbol_data(self):
-        df = dl._load_symbol_data(TEST_CSV_FILE, 'Date')
+        df = dl.load_symbol_data(TEST_CSV_FILE, 'Date')
         # we don't won't index to be returned with each result
         self.assertDictEqual(
             {'Adj Close': 13107.48,
@@ -39,8 +39,8 @@ class TestDataLoader(unittest.TestCase):
             df['Adj Close'].to_dict())
 
     def test_load_symbol_data_reversed(self):
-        test = dl._load_symbol_data(TEST_CSV_FILE)
-        test_reversed = dl._load_symbol_data(TEST_REVERSED_CSV_FILE)
+        test = dl.load_symbol_data(TEST_CSV_FILE)
+        test_reversed = dl.load_symbol_data(TEST_REVERSED_CSV_FILE)
         self.assertEquals(test.ix[0]['Close'], test_reversed.ix[0]['Close'])
 
     def test_load_price_data(self):
@@ -68,7 +68,6 @@ class TestDataLoader(unittest.TestCase):
         self.assertEqual(17, len(msft_put))
         self.assert_frame_different(msft_call, msft_put)
 
-
     def assert_frame_different(self, left, right):
         try:
             assert_frame_equal(left, right)
@@ -78,9 +77,44 @@ class TestDataLoader(unittest.TestCase):
         except TestException:
             self.fail()
 
-
     def _get_symbol_list(self):
         return dl.load_symbol_list(SYMBOL_LIST_FILE)
+
+    def test_load_intraday_data(self):
+        data = dl.load_intraday_data('SP500', INTRADAY_DIR, ['AA', 'AAPL'])
+        self.assertTrue('AA' in data)
+        self.assertTrue('AAPL' in data)
+
+        self.assertTrue('20140811' in data['AA'])
+        self.assertTrue('20140811' in data['AAPL'])
+
+        self.assertTrue('20140818' in data['AA'])
+        self.assertTrue('20140818' in data['AAPL'])
+
+        self.assertEqual(6, len(data['AA']))
+        self.assertEqual(6, len(data['AA']))
+
+        self.assertEqual(391, len(data['AA']['20140811']))
+        self.assertEqual(391, len(data['AAPL']['20140818']))
+
+
+    def test_get_dates(self):
+        self.assertListEqual(
+            ['20140811', '20140812', '20140813', '20140814', '20140815',
+             '20140818'],
+            dl.get_dates(INTRADAY_SP500_DIR))
+
+        self.assertListEqual(
+            ['20140813', '20140814', '20140815', '20140818'],
+            dl.get_dates(INTRADAY_SP500_DIR, '20140813'))
+
+        self.assertListEqual(
+            ['20140811', '20140812', '20140813'],
+            dl.get_dates(INTRADAY_SP500_DIR, end_date='20140813'))
+
+        self.assertListEqual(
+            ['20140812', '20140813', '20140814', '20140815'],
+            dl.get_dates(INTRADAY_SP500_DIR, '20140812', '20140815'))
 
 
 class TestException(Exception):

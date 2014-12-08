@@ -1,10 +1,10 @@
 import numpy as np
 import unittest
 
-from numpy.testing import utils
-
 import backtester
 from backtester import MovingAverageBacktest
+import utils
+
 
 PRICES = np.array([10.0, 15.0, 17.5, 12.5, 7.5, 10.0, 15.0, 20.0, 22.5, 17.5])
 SIGNALS1 = np.array([0, 1, 0, 1, 0, -1, 1, 0, -1, -1])
@@ -14,7 +14,7 @@ SIGNALS2 = signals2 = np.array([1, 1, 0, 1, 0, -1, 1, 0, -1, 0])
 class TestBacktester(unittest.TestCase):
 
     def test_calculate_sharpe_ratio(self):
-        pnl = self._generate_pnl()
+        pnl = self.generate_pnl()
         returns = utils.calculate_returns(pnl)
         self.assertEqual(-2.5095619671562686,
                          backtester._calculate_sharpe_ratio(returns))

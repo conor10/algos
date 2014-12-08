@@ -1,4 +1,4 @@
-from scipy.stats import gamma
+from math import gamma
 from numpy import log, sqrt
 import numpy as np
 
@@ -10,7 +10,7 @@ ANNUALISER = sqrt(252.0)
 def annualise(data):
     return data * ANNUALISER
 
-# TODO: Vectorise
+
 def sample_variance(returns):
     N = len(returns)
     return (1 / N) * sum(returns**2)
@@ -21,10 +21,26 @@ def population_variance(returns):
     return (N / (N - 1)) * sample_variance(returns)
 
 
-def close_to_close_std_dev(returns):
-    N = len(returns)
+def population_std_dev(close_prices, lookback, unbiased=False):
+    N = float(lookback)
+
+    prices = log(close_prices / utils.lag(close_prices))
+    results = np.zeros(np.size(prices))
+    results[:] = np.NAN
+    for i in range(lookback, len(prices)):
+        bounds = range(i-(lookback-1), i+1)
+        results[i] = sqrt(
+            ((prices[bounds] - prices[bounds].sum() / N)**2).sum() / (N - 1))
+    if unbiased:
+        results = unbias_std_dev(results, N)
+
+    return annualise(results)
+
+
+def unbias_std_dev(std_dev):
+    N = float(len(std_dev))
     bias = sqrt(2 / N) * (gamma(N / 2) / gamma((N - 1) / 2))
-    return bias * sqrt(population_variance(returns))
+    return bias * std_dev
 
 
 def parkinson_std_dev(high_prices, low_prices, lookback):
@@ -42,7 +58,7 @@ def parkinson_std_dev(high_prices, low_prices, lookback):
                           (prices[bounds]).sum())
     return annualise(results)
 
-    # Sinclair's implementation
+    # Sinclair's implementation produces the same result
     # prices = (1 / (4 * log(2))) * log(high_prices / low_prices)**2
     # results = np.zeros(np.size(prices))
     # results[:] = np.NAN
@@ -172,6 +188,11 @@ def yang_zhang_std_dev(close_prices, open_prices, high_prices,
 
 def sinclair_yang_zhang_std_dev(close_prices, open_prices, high_prices,
                        low_prices, lookback):
+    """
+    Sinclair implementation uses 0 as our mean for std_dev calculations
+    Additionally uses open/close for open variance, & close/close for close
+    std_dev, as opposed to the same for both
+    """
     N = float(lookback)
 
     k = 0.34 / (1.34 + ((N + 1) / (N - 1)))
@@ -200,5 +221,27 @@ def sinclair_yang_zhang_std_dev(close_prices, open_prices, high_prices,
     return annualise(results)
 
 
-def first_exit():
-    pass
+def first_exit(prices, delta, lookback):
+    """
+    :param delta: our observation_barrier:
+    """
+    # Our exit_times
+    exit_times = []
+
+    results = np.zeros(np.size(prices))
+    results[:] = np.NAN
+
+    for i in range(lookback-1, len(results)):
+        bounds = range(i-(lookback-1), i+1)
+
+        upper_barrier = prices[0] + delta
+        lower_barrier = prices[0] - delta
+        for i in range(1, len(prices)):
+            price = prices[i]
+            if price >= upper_barrier or price <= lower_barrier:
+                exit_times.append(i)
+                upper_barrier = price + delta
+                lower_barrier = price - delta
+
+        tau = np.array(exit_times)
+        results[i] = delta / (sqrt(tau / len(tau)))

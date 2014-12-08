@@ -1,3 +1,4 @@
+import os
 import unittest
 
 import numpy as np
@@ -6,10 +7,13 @@ from pandas import Timestamp
 
 import data_loader as dl
 from price_data import PriceData
-from test.test_sources import DATA_DIR, SYMBOL_LIST
 import utils
 from utils import DATE_FORMAT
 
+
+WORKING_DIR = os.path.dirname(os.path.realpath(__file__))
+DATA_DIR = os.path.join(WORKING_DIR, 'data')
+SYMBOL_LIST = ['TEST', 'TEST2', 'TEST3']
 
 DATE1 = '2012-08-28'
 DATE2 = '2012-08-29'

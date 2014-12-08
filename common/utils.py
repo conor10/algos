@@ -44,15 +44,27 @@ def ffill(data):
     return data
 
 
-def lag(data):
-    lag = np.roll(data, 1)
-    lag[0] = 0.
-    return lag
+def lag(data, empty_term=0.):
+    lagged = np.roll(data, 1)
+    lagged[0] = empty_term
+    return lagged
 
 
 def calculate_returns(pnl):
     lagged_pnl = lag(pnl)
     returns = (pnl - lagged_pnl) / lagged_pnl
+
+    # All values prior to our position opening in pnl will have a
+    # value of inf. This is due to division by 0.0
+    returns[np.isinf(returns)] = 0.
+    # Additionally, any values of 0 / 0 will produce NaN
+    returns[np.isnan(returns)] = 0.
+    return returns
+
+
+def calculate_log_returns(pnl):
+    lagged_pnl = lag(pnl)
+    returns = np.log(pnl / lagged_pnl)
 
     # All values prior to our position opening in pnl will have a
     # value of inf. This is due to division by 0.0

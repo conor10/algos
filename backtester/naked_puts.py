@@ -1,21 +1,19 @@
-import datetime as dt
-import math
-
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
+import datetime as dt
+import math
 import data_loader
 import init_logger
-from option import Type
+from datatypes import OptionType
 import price_series
-
 import utils
 
 
 def main():
 
     run_date = dt.datetime(2014, 9, 19)
+    run_date_str = run_date.strftime('%Y%m%d')
 
     # symbols = \
     #     data_loader.load_symbol_list(
@@ -24,7 +22,7 @@ def main():
     symbols = ['AAPL']
     all_options_prices = data_loader.load_option_data(
         'SP500', '/Users/Conor/code/python/conor10.tickdata/chains', symbols,
-        [run_date.strftime('%Y%m%d')])
+        start_date=run_date_str, end_date=run_date_str)
     all_stock_prices = data_loader.load_price_data(
         '/Users/Conor/code/python/conor10.tickdata/daily_prices/SP500',
         symbols)
@@ -49,7 +47,7 @@ def main():
             expiries = option_prices[capture_date]
             for expiry in expiries.keys():
                 prices = expiries[expiry]
-                puts = prices[Type.PUT]
+                puts = prices[OptionType.PUT]
                 print(expiry)
 
                 dt_expiry = dt.datetime.strptime(expiry, '%Y%m%d')
@@ -62,7 +60,7 @@ def main():
                 # TODO: workalendar may be useful
 
                 #TODO Rename
-                delta = days_to_expiry / days_in_year
+                duration = days_to_expiry / days_in_year
 
                 # TODO: Make model more sophisticated for sigma
                 # lookback_period = days_to_expiry
@@ -72,7 +70,7 @@ def main():
 
                 itm_probability = price_series.calc_itm_probability(
                     puts.index, underlying_price, sigma, days_to_expiry,
-                    10000, Type.PUT)
+                    10000, OptionType.PUT)
 
 #                print(itm_probability)
 
@@ -98,9 +96,22 @@ def main():
 
                 data = np.asarray(results).T
 
-                plot3D(data[0], data[1], data[2],
+                # last_price / probability
+                upside_ratio = data[2] / data[1]
+                # discard inf values
+                upside_ratio[np.where(upside_ratio == np.inf)] = 0
+                upside_ratio[np.where(upside_ratio == np.nan)] = 0
+                optimal_idx = upside_ratio.argmax()
+
+                # print('Optimal option: {}'.format(data[0][optimal_idx]))
+                optimal = [[data[0][optimal_idx]],
+                            [data[1][optimal_idx]],
+                            [data[2][optimal_idx]]]
+
+                plot3D(data[0], data[1], data[2], optimal,
                        'Date: {}, Underlying: {}, Last price: {}, Expiry: {}'
                        .format(capture_date, symbol, underlying_price, expiry))
+
 
                 # TODO: Plot some potential outcomes
                 # TODO: What strategy to use to determine option to buy?
@@ -119,12 +130,24 @@ def calc_sigma(returns, lookback_period, end_date, annual_day_count):
         * math.sqrt(annual_day_count)
 
 
-def plot3D(X, Y, Z, title):
+def calc_weighted_sigma():
+    # Take imp sigma for all expiries on stock
+    # Calc sigma using
+    # sum(weight * distance * imp_sigma) / (weight * distance)
+    # where weight = vol traded / total vol traded
+    # distance = ( (x - price)**2 / price**2
+    #
+    pass
+
+
+def plot3D(X, Y, Z, optimal, title):
     # fig = plt.figure ()
     # ax = Axes3D(fig, azim=-29, elev=50)
     figure = plt.figure(figsize=(8, 8), facecolor='w')
     ax = figure.gca(projection='3d')
     ax.plot(X, Y, Z, 'o')
+    ax.plot(optimal[0], optimal[1], optimal[2], color='r', marker='o',
+            markersize=6)
     plt.xlabel('strike')
     plt.ylabel('probability')
     ax.set_zlabel('last price')

@@ -4,10 +4,7 @@ from math import exp, log, pi, sqrt
 from scipy.stats import norm as N
 from scipy import optimize
 
-
-class Type(object):
-    CALL = 'C'
-    PUT = 'P'
+from datatypes import OptionType
 
 
 class Option(object):
@@ -39,14 +36,14 @@ class Option(object):
     def price(self):
         if self._price is None:
             if self.q != 0.0:
-                if self.type == Type.CALL:
+                if self.type == OptionType.CALL:
                     self._price = self._call_price_with_dividends()
-                elif self.type == Type.PUT:
+                elif self.type == OptionType.PUT:
                     self._price = self._put_price_with_dividends()
             else:
-                if self.type == Type.CALL:
+                if self.type == OptionType.CALL:
                     self._price = self._call_price_no_dividends()
-                elif self.type == Type.PUT:
+                elif self.type == OptionType.PUT:
                     self._price = self._put_price_with_dividends()
 
         return self._price
@@ -89,9 +86,9 @@ class Option(object):
     @property
     def delta(self):
         if self._delta is None:
-            if self.type == Type.CALL:
+            if self.type == OptionType.CALL:
                 self._delta = self._delta_call()
-            elif self.type == Type.PUT:
+            elif self.type == OptionType.PUT:
                 self._delta = self._delta_put()
         return self._delta
 
@@ -112,9 +109,9 @@ class Option(object):
     @property
     def rho(self):
         if self._rho is None:
-            if self.type == Type.CALL:
+            if self.type == OptionType.CALL:
                 self._rho = self._rho_call()
-            elif self.type == Type.PUT:
+            elif self.type == OptionType.PUT:
                 self._rho = self._rho_put()
         return self._rho
 
@@ -127,9 +124,9 @@ class Option(object):
     @property
     def theta(self):
         if self._theta is None:
-            if self.type == Type.CALL:
+            if self.type == OptionType.CALL:
                 self._theta = self._theta_call()
-            elif self.type == Type.PUT:
+            elif self.type == OptionType.PUT:
                 self._theta = self._theta_put()
         return self._theta
 

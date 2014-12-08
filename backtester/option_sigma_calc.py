@@ -1,18 +1,18 @@
 import calendar
-import datetime as dt
 
+import datetime as dt
 import data_loader
 import init_logger
 import math
 import option
-from option import Type
-
+from datatypes import OptionType
 import utils
 
 
 def main():
 
     run_date = dt.datetime(2014, 9, 19)
+    run_date_str = run_date.strftime('%Y%m%d')
 
     # symbols = \
     #     data_loader.load_symbol_list(
@@ -21,7 +21,7 @@ def main():
     symbols = ['AAPL']
     all_options_prices = data_loader.load_option_data(
         'SP500', '/Users/Conor/code/python/conor10.tickdata/chains', symbols,
-        [run_date.strftime('%Y%m%d')])
+        start_date=run_date_str, end_date=run_date_str)
     all_stock_prices = data_loader.load_price_data(
         '/Users/Conor/code/python/conor10.tickdata/daily_prices/SP500',
         symbols)
@@ -45,7 +45,7 @@ def main():
             expiries = option_prices[capture_date]
             for expiry in expiries.keys():
                 prices = expiries[expiry]
-                puts = prices[Type.PUT]
+                puts = prices[OptionType.PUT]
                 print(expiry)
                 # print(puts)
 
@@ -61,10 +61,10 @@ def main():
                         continue
                     last_price = float(last_price_str)
                     price = option.calc_option_price(
-                        Type.PUT, strike, underlying_price, sigma, delta,
+                        OptionType.PUT, strike, underlying_price, sigma, delta,
                         risk_free_rate=0.01)
                     implied_volatility = option.implied_volatility(
-                        Type.PUT, strike, underlying_price, last_price, delta)
+                        OptionType.PUT, strike, underlying_price, last_price, delta)
                     print('Strike: {}, calc price: {}, actual {}'.format(
                         strike, price, last_price))
                     print('Sigma: {}, implied sigma: {}'.format(

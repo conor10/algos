@@ -1,5 +1,5 @@
 import numpy as np
-from option import Type
+from option import OptionType
 
 from scikits.statsmodels.tsa import arima_process
 
@@ -54,10 +54,10 @@ def calc_itm_probability(strikes, price, sigma, periods, simulation_count, type)
 
     for idx in np.ndindex(strikes.shape):
         # Can this be vectorised?
-        if type is Type.CALL:
+        if type is OptionType.CALL:
             results[idx][1] = \
                 sum(final_prices > strikes[idx]) / float(simulation_count)
-        elif type is Type.PUT:
+        elif type is OptionType.PUT:
             results[idx][1] = \
                 sum(final_prices < strikes[idx]) / float(simulation_count)
 

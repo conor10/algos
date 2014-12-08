@@ -47,6 +47,11 @@ class TestUtils(unittest.TestCase):
             np.array([0, 1, 2, 3, 4]),
             utils.lag(np.array([1, 2, 3, 4, 5])))
 
+    def test_lag_nan(self):
+        np_utils.assert_array_equal(
+            np.array([np.NAN, 1, 2, 3, 4]),
+            utils.lag(np.array([1., 2., 3., 4., 5.]), np.NAN))
+
     def test_calculate_returns(self):
         returns = utils.calculate_returns(self._generate_pnl())
         utils.assert_allclose(

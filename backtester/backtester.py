@@ -15,7 +15,7 @@ import utils
 np.set_printoptions(threshold=np.nan)
 
 
-_PLOT_SERIES = False
+_PLOT_SERIES = True
 
 
 class Side(object):

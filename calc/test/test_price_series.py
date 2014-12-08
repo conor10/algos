@@ -4,7 +4,7 @@ import numpy as np
 from numpy import random
 from numpy.testing import utils as np_utils
 
-from option import Type
+from option import OptionType
 import price_series
 
 
@@ -19,9 +19,9 @@ class PriceSeriesTest(unittest.TestCase):
 
     def test_generate_random_price_series(self):
         random.seed(1)
-        series = price_series.generate_random_price_series(70, 0.35, 5)
+        series = price_series._generate_random_price_series(70, 0.35, 5)
         print(series)
-        np_utils.assert_array_equal(
+        np_utils.assert_array_almost_equal(
             np.array([70.56852088, 69.78588526, 69.81513989, 69.62446098, 70.30289267]),
             series)
 
@@ -31,7 +31,7 @@ class PriceSeriesTest(unittest.TestCase):
         sigma = 3.5  # 5% volatility
         strikes = np.arange(60, 80, 0.1)
         itm_probability = price_series.calc_itm_probability(
-            strikes, price, sigma, 100, 1000, Type.PUT)
+            strikes, price, sigma, 100, 1000, OptionType.PUT)
 
         print(itm_probability)
 
