@@ -94,9 +94,11 @@ class Option(object):
 
     def _delta_call(self):
         return exp(-self.q * self.T) * N.cdf(self.d1)
+        # return N.cdf(self.d1)
 
     def _delta_put(self):
         return -exp(-self.q * self.T) * N.cdf(-self.d1)
+        # return N.cdf(-self.d1)
 
     @property
     def gamma(self):

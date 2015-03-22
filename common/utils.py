@@ -1,5 +1,6 @@
 from datetime import datetime
 from datetime import timedelta
+import math
 
 import numpy as np
 
@@ -50,9 +51,9 @@ def lag(data, empty_term=0.):
     return lagged
 
 
-def calculate_returns(pnl):
-    lagged_pnl = lag(pnl)
-    returns = (pnl - lagged_pnl) / lagged_pnl
+def calculate_returns(prices):
+    lagged_pnl = lag(prices)
+    returns = (prices - lagged_pnl) / lagged_pnl
 
     # All values prior to our position opening in pnl will have a
     # value of inf. This is due to division by 0.0
@@ -62,9 +63,13 @@ def calculate_returns(pnl):
     return returns
 
 
-def calculate_log_returns(pnl):
-    lagged_pnl = lag(pnl)
-    returns = np.log(pnl / lagged_pnl)
+def calculate_short_returns(prices):
+    return calculate_returns(prices) * -1.
+
+
+def calculate_log_returns(prices):
+    lagged_pnl = lag(prices)
+    returns = np.log(prices / lagged_pnl)
 
     # All values prior to our position opening in pnl will have a
     # value of inf. This is due to division by 0.0
@@ -72,3 +77,70 @@ def calculate_log_returns(pnl):
     # Additionally, any values of 0 / 0 will produce NaN
     returns[np.isnan(returns)] = 0.
     return returns
+
+
+def calculate_short_log_returns(prices):
+    return calculate_log_returns(prices) * -1.
+
+
+def calculate_sharpe_ratio(returns, annulisation_factor=252.0):
+    return (np.mean(returns) / np.std(returns)) * \
+           math.sqrt(annulisation_factor)
+
+def calculate_sortino_ratio_with_freq(returns, annualisation_factor=252.0):
+    """
+    Modified Sortino ratio that takes into account the frequency in addition
+    to the magnitude of below target returns. This was as per
+    http://managed-futures-blog.attaincapital.com/
+    2013/09/11/sortino-ratio-are-you-calculating-it-wrong/
+    """
+    def f(x):
+        return x if x < 0. else 0.
+    f = np.vectorize(f)
+    return calculate_sharpe_ratio(f(returns), annualisation_factor)
+
+
+def calculate_sortino_ratio(returns, annualisation_factor=252.0):
+    return (np.mean(returns) / np.std(returns[np.where(returns < 0.)])) \
+           * math.sqrt(annualisation_factor)
+
+
+def calculate_max_drawdown(returns):
+    size = len(returns)
+    highwatermark = np.zeros(size) # Max return seen
+    drawdown = np.zeros(size)
+    dd_duration = np.zeros(size, dtype=int)
+
+    for i in range(1, size):
+        highwatermark[i] = max(highwatermark[i-1], returns[i])
+        drawdown[i] = ((1.0 + returns[i]) / (1.0 + highwatermark[i])) - 1.0
+        if drawdown[i] == 0.:
+            dd_duration[i] = 0
+        else:
+            dd_duration[i] = dd_duration[i-1] + 1
+
+    min_dd_idx = drawdown.argmin()
+    return min(drawdown), max(dd_duration), \
+           min_dd_idx, dd_duration.argmax(), \
+           np.where(returns == highwatermark[min_dd_idx-1])[-1]
+
+
+def calculate_max_drawdown_log(returns):
+    size = len(returns)
+    highwatermark = np.zeros(size) # Max return seen
+    drawdown = np.zeros(size)
+    dd_duration = np.zeros(size, dtype=int)
+
+    for i in range(1, size):
+        highwatermark[i] = max(highwatermark[i-1], returns[i])
+        drawdown[i] = returns[i] - highwatermark[i]
+        if drawdown[i] == 0.:
+            dd_duration[i] = 0
+        else:
+            dd_duration[i] = dd_duration[i-1] + 1
+
+    min_dd_idx = drawdown.argmin()
+    return min(drawdown), max(dd_duration), \
+           min_dd_idx, dd_duration.argmax(), \
+           np.where(returns == highwatermark[min_dd_idx-1])[-1]
+

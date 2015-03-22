@@ -94,5 +94,14 @@ class OptionTests(unittest.TestCase):
         self.assertAlmostEqual(12.1, call.vega, places=1)
         self.assertAlmostEqual(8.91, call.rho, places=2)
 
+    def test_greeks_sinclair(self):
+        import math
+        call = Option(OptionType.CALL, 109.0, 100.0, 0.5, 25.0 / 252.0, risk_free_rate=0.02)
+        print(call.delta)
+
+        call2 = Option(OptionType.CALL, 100.0, 100.0, 0.2 / math.sqrt(252.0), 250.0)
+        print(call2.delta)
+
+
 if __name__ == '__main__':
     unittest.main()

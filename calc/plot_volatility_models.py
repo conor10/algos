@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
+# This prettifies all of our charts
+import seaborn
 
 import volatility_models as models
 
@@ -51,6 +52,7 @@ def main():
         low_data,
         30)
 
+
     plt.plot(std_dev, label='std_dev')
     # plt.plot(unbiased_std_dev, label='unbiased')
     plt.plot(parkinson_std_dev, label='parkinson')
@@ -84,6 +86,9 @@ def get_ss_data():
                    header=1, index_col=0, parse_cols='B:K')
     data.sort_index(inplace=True)
     return data#[bounds]
+
+
+
 
 
 if __name__ == '__main__':

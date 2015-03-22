@@ -1,4 +1,3 @@
-import math
 import os
 
 import matplotlib.pyplot as plt
@@ -27,18 +26,20 @@ def main():
 
     ivts = prices['^VIX'] / prices['^VXV']
 
-    length = len(ivts)
-    orders = np.zeros((length, 2), dtype=np.int)
-    positions = np.zeros((length, 2), dtype=np.int)
-    cash = np.zeros(length)
-    cash[0] = 100000.0
-    cash_delta = np.zeros(length)
+    count = len(ivts)
+    orders = np.zeros((count, 2), dtype=np.int)
+    positions = np.zeros((count, 2), dtype=np.int)
+    cash = np.zeros(count)
+    cash[0] = 10000.0
+    cash_delta = np.zeros(count)
 
     # for i in range(1, length-1):
-    for i in range(1, length):
+    for i in range(1, count):
         # ratio = get_mojito_ratio(ivts[i-1])
-        ratio = get_dynamic_vix_ratio(ivts[i-1])
-        print('{}, {}'.format(ratio[0], ratio[1]))
+        ratio = get_mojito_aggressive_ratio(ivts[i-1])
+        # ratio = get_dynamic_vix_ratio(ivts[i-1])
+        # ratio = get_fixed_vix_ratio()
+        # print('{}, {}'.format(ratio[0], ratio[1]))
 
         orders[i] = calc_adjustments(
             positions[i-1],
@@ -66,31 +67,56 @@ def main():
                      + cash
     returns = (vxx_change + vxz_change) / notional_value
 
-    sharpe_ratio = (np.mean(returns) / np.std(returns)) * math.sqrt(252.0)
-    print('Sharpe Ratio: {}'.format(sharpe_ratio))
+    log_returns = (np.log(1.0 + returns)).cumsum()
+    real_returns = 1000.0 * np.exp(log_returns)
+    # normal_returns = 1000.0 * (1.0 + returns).cumprod()
 
-    plt.plot(1000 + (returns.cumsum() * 1000))
+    sharpe_ratio = utils.calculate_sharpe_ratio(returns)
+    sortino_ratio = utils.calculate_sortino_ratio(returns.values)
+    print('Sharpe Ratio: {0:.2f}'.format(sharpe_ratio))
+    print('Sortino Ratio: {0:.2f}'.format(sortino_ratio))
+
+    max_dd, max_duration, max_dd_idx, max_duration_idx, hwm_idx = \
+        utils.calculate_max_drawdown_log(log_returns)
+    print('Max drawdown: {:.2f}%, max duration: {} days'
+          .format(max_dd * 100.0, max_duration))
+
+    plt.plot(real_returns, label='log_returns')
+    # plt.plot(normal_returns, label='normal_returns')
+
+    plt.plot((hwm_idx, max_dd_idx),
+             (real_returns[hwm_idx], real_returns[max_dd_idx]), color='black')
+    plt.annotate('max dd ({0:.2f}%)'.format(max_dd * 100.0),
+                 xy=(max_dd_idx, real_returns[max_dd_idx]),
+                 xycoords='data', xytext=(0, -50),
+                 textcoords='offset points',
+                 arrowprops=dict(facecolor='black', shrink=0.05))
+
+    max_duration_start_idx = max_duration_idx - max_duration
+    max_duration_x1x2 = (max_duration_start_idx, max_duration_idx)
+    max_duration_y1y2 = (real_returns[max_duration_start_idx],
+                         real_returns[max_duration_start_idx])
+
+    plt.plot(max_duration_x1x2, max_duration_y1y2, color='black')
+    plt.annotate('max dd duration ({} days)'.format(max_duration),
+                 xy=((max_duration_start_idx + max_duration_idx) / 2,
+                     real_returns[max_duration_start_idx]),
+                 xycoords='data',
+                 xytext=(-100, 30), textcoords='offset points',
+                 arrowprops=dict(facecolor='black', shrink=0.05))
+
+    plt.legend()
     plt.show()
 
-    for i in range(0, length):
-    #     print('{}, {}, {}'.format(prices.index[i], prices['VXX'].ix[i], prices['VXZ'].ix[i]))
-        print('{}, {}, {}, {}, {}, {}, return: {}'.format(
-            i, prices['VXX'][i], prices['VXZ'][i], orders[i], positions[i], cash[i],
-            returns[i]))
+    # for i in range(0, length):
+    #     print('{}, {}, {}, {}, {}, {}, return: {}'.format(
+    #         i, prices['VXX'][i], prices['VXZ'][i], orders[i], positions[i], cash[i],
+    #         returns[i]))
 
-
-    # portfolio_value = (positions * prices[['VXX', 'VXZ']])
-    # print(portfolio_value)
 
     # TODO:
-    # 1. Calculate Sharpe & Sortino ratios
-    # 2. Calculate maximum drawdown
-    # 3. Plot portfolio value
-    # 4. Add transaction costs
-    # 5. Run over multiple time periods
-    # 6. Fix cash calculation
-
-    # print(value / (np.absolute(value['VXX']) + np.absolute(value['VXZ'])))
+    # 1. Add transaction costs
+    # 2. Run over multiple time periods
 
 
 def load_prices(symbols):
@@ -98,7 +124,7 @@ def load_prices(symbols):
     df = None
 
     for key, value in prices.iteritems():
-        # dataset = value[-200:]
+        # dataset = value[-252:]
         dataset = value['13/8/2010':'29/6/2012']
         dataset.rename(columns={PRICE: key}, inplace=True)
         if df is None:
@@ -130,6 +156,30 @@ def get_mojito_ratio(ivts):
     else:
         return np.array((-0.10, 0.90))
 
+
+"""
+| IVTS     | VXX Weight | VXZ Weight |
+| <= 0.91  | -0.70      | 0.30       |
+| <= 0.94  | -0.32      | 0.68       |
+| <= 0.97  | -0.32      | 0.68       |
+| <= 1.005 | -0.28      | 0.72       |
+| > 1.005  | -0.00      | 1.00       |
+
+:returns VXX Weight, VXZ Weight
+"""
+def get_mojito_aggressive_ratio(ivts):
+    if ivts <= 0.91:
+        return np.array((-0.70, 0.30))
+    elif ivts <= 0.94:
+        return np.array((-0.32, 0.68))
+    elif ivts <= 0.97:
+        return np.array((-0.32, 0.68))
+    elif ivts <= 1.005:
+        return np.array((-0.28, 0.72))
+    else:
+        return np.array((0.00, 1.00))
+
+
 """
 | IVTS     | VXX Weight | VXZ Weight |
 | < 0.90   | -0.30      | 0.70       |
@@ -153,52 +203,37 @@ def get_dynamic_vix_ratio(ivts):
         return np.array((0.5, 0.5))
 
 
+def get_fixed_vix_ratio():
+    return np.array((-0.32, 0.68))
+
+
 def calc_adjustments(existing_qty, curr_prices, target_alloc, cash):
     curr_value = existing_qty * curr_prices
     # Portfolio is balanced using absolute weightings
     target_orders = target_alloc * (np.sum(np.absolute(curr_value))
                                     + max(0, cash)) / curr_prices
 
-    # We round our target value down to ensure we can actually afford the position
+    # We round our target value down to ensure we can actually afford the
+    # position
     adjustments = target_orders.astype(int) - existing_qty
 
     return adjustments
 
 
-def calc_adjustments2(long_positions, short_positions, curr_prices, target_alloc, cash):
-    curr_value_long = long_positions * curr_prices
-    curr_value_short = short_positions * curr_prices
-    # Portfolio is balanced using absolute weightings
-    target_value = target_alloc * \
-                   (np.sum(curr_value_short * -1.0 +
-                          curr_value_long) + max(0, cash))
-
-    # TODO: need to ensure we have enough cash to cover new ratios (cannot go negative)
-    adjustments_long = ((target_value - curr_value_long) / curr_prices)
-    adjustments_short = ((target_value - curr_value_short) / curr_prices)
-    # We round orders down
-
-    # Need to ensure enough cash for adjustments
-
-    return adjustments_long.astype(int), adjustments_short.astype(int)
-
-
 def calc_cash_delta(orders, prices, positions):
     costs = 0.0
-    # TODO: What do we do when we have no positions? Perhaps seperate positions into long & short
     for i in range(0, len(orders)):
         if positions[i] > 0: # long positions
             costs += orders[i] * prices[i]
         elif positions[i] < 0: # short positions
             # When we cover our shorts we make more funds available
-            costs += (orders[i] * prices[i] * -1)
+            costs += (orders[i] * prices[i] * -1.)
+        else:
+            if orders[i] > 0:
+                costs += (orders[i] * prices[i] * -1.)
+            else:
+                costs += (orders[i] * prices[i])
     return -costs
-
-
-def calc_sharpe_ratio(positions, prices):
-    value = (positions * prices).sum(1)
-    returns = utils.calculate_returns(value)
-    return (returns.mean() * 252.0) / (returns.std() * math.sqrt(252.0))
 
 
 def plot(prices):

@@ -7,7 +7,7 @@ import pandas as pd
 from datatypes import OptionType
 
 
-def load_price_data(data_dir, symbols):
+def load_price_data(data_dir, symbols, range=[]):
     price_data = {}
 
     for symbol in symbols:

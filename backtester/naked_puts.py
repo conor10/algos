@@ -45,7 +45,7 @@ def main():
 
         for capture_date in option_prices.keys():
             expiries = option_prices[capture_date]
-            for expiry in expiries.keys():
+            for expiry in sorted(expiries.keys()):
                 prices = expiries[expiry]
                 puts = prices[OptionType.PUT]
                 print(expiry)

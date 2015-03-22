@@ -3,6 +3,7 @@ import unittest
 import numpy.testing as ntest
 import pandas as pd
 
+import data_loader as dl
 import volatility_models as vol
 
 
@@ -92,6 +93,11 @@ class TestVolatilityModels(unittest.TestCase):
 
         ntest.assert_array_almost_equal(data['30 day Yang Zhang'].values[30:],
                                         (volatility[30:]))
+
+    def test_first_exit(self):
+        data = dl.load_intraday_data('SP500', 'intraday', ['APPL'])
+        vol.intraday_data_returns(data, ['AAPL'])
+
 
 
 if __name__ == '__main__':

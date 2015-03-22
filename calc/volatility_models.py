@@ -7,8 +7,8 @@ import utils
 ANNUALISER = sqrt(252.0)
 
 
-def annualise(data):
-    return data * ANNUALISER
+def annualise(data, periods_per_day=1):
+    return data * ANNUALISER * sqrt(periods_per_day)
 
 
 def sample_variance(returns):
@@ -196,7 +196,6 @@ def sinclair_yang_zhang_std_dev(close_prices, open_prices, high_prices,
     N = float(lookback)
 
     k = 0.34 / (1.34 + ((N + 1) / (N - 1)))
-    print(k)
 
     logOC = log(open_prices / utils.lag(close_prices))
     logCC = log(close_prices / utils.lag(close_prices))
@@ -221,27 +220,79 @@ def sinclair_yang_zhang_std_dev(close_prices, open_prices, high_prices,
     return annualise(results)
 
 
-def first_exit(prices, delta, lookback):
+def first_exit(price_series, delta, lookback):
+    prices = intraday_returns(price_series)
+    return first_exit(prices, delta, lookback, np.size(price_series))
+
+
+def first_exit(prices, delta, lookback, day_count):
     """
     :param delta: our observation_barrier:
     """
+
     # Our exit_times
     exit_times = []
 
-    results = np.zeros(np.size(prices))
+    results = np.zeros(day_count)
     results[:] = np.NAN
 
-    for i in range(lookback-1, len(results)):
-        bounds = range(i-(lookback-1), i+1)
+    offset = 0
 
-        upper_barrier = prices[0] + delta
-        lower_barrier = prices[0] - delta
-        for i in range(1, len(prices)):
+    # TODO: Do we need to support < 1 day trading periods
+
+    # TODO: We should perform a single loop over all data
+
+    for day in range(lookback-1, len(results)):
+
+        upper_barrier = prices[offset] + delta
+        lower_barrier = prices[offset] - delta
+        count = 0.
+
+        for i in range(offset+1, offset + (391 * lookback)):
+            count += 1.
             price = prices[i]
             if price >= upper_barrier or price <= lower_barrier:
-                exit_times.append(i)
+                exit_times.append(count)
+                count = 0.
                 upper_barrier = price + delta
                 lower_barrier = price - delta
 
         tau = np.array(exit_times)
-        results[i] = delta / (sqrt(tau / len(tau)))
+        results[day] = delta / (sqrt(tau.mean()))
+
+        offset += 391
+
+    corrected_results = results / (1. + (1. / (4. * (float(lookback) * 391.))))
+
+    return annualise(corrected_results, 391)
+
+
+def intraday_returns(daily_prices):
+
+    results = np.array([])
+    # result = np.array(np.zeros(391 * len(dates)))
+    # offset = 0
+
+    # We have no previous close for first iteration
+    close_price = np.NaN
+
+    for date in sorted(daily_prices.keys()):
+        prices = daily_prices[date]['close'].values
+        returns = log(prices / utils.lag(prices, close_price))
+        results = np.hstack((results, returns))
+        close_price = prices[-1]
+        # TODO: Work out factor to apply to overnight return
+
+    # np.trim_zeros(results, trim='b')
+
+    return results
+
+
+def intraday_prices(daily_prices):
+    results = np.array([])
+
+    for date in sorted(daily_prices.keys()):
+        prices = daily_prices[date]['close'].values
+        results = np.hstack((results, prices))
+
+    return results
