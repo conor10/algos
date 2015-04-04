@@ -4,7 +4,7 @@ import os
 
 import pandas as pd
 
-from datatypes import OptionType
+from datatypes import OptionType, FUTURES_MONTHS
 
 
 def load_price_data(data_dir, symbols, range=[]):
@@ -31,8 +31,9 @@ def _get_price_file(name, data_dir):
     return os.path.join(data_dir, name + '.csv')
 
 
-def load_symbol_data(filename, index=0, order_ascending=True):
-    df = pd.read_csv(filename, index_col=index, parse_dates=True)
+def load_symbol_data(filename, index=0, header_row=0, order_ascending=True):
+    df = pd.read_csv(filename, index_col=index, header=header_row,
+                     parse_dates=True)
 
     if order_ascending:
         # Ensure data is in ascending order by date
@@ -144,6 +145,38 @@ def get_dates(directory, start_date=None, end_date=None):
         end_idx = all_dates.index(end_date) + 1
 
     return all_dates[start_idx:end_idx]
+
+
+def load_vix_futures_prices(source_dir, price='Close', start_year=2008):
+    """
+    Dictionary of dataframe price data in format
+    CFE_[M][YY]_VX.csv where M is []
+
+    :return data[YYYY][M] = dataframe
+    Where YYYY is expiry year, M is expiry month in range [0, 11]
+    """
+
+    data = {}
+
+    files = glob.glob(os.path.join(source_dir, 'CFE_*'))
+    for f in files:
+        filename = os.path.basename(f)
+        month = FUTURES_MONTHS.index(filename[4])
+        year = int('20' + filename[5] + filename[6])
+
+        if year < start_year:
+            continue
+
+        try:
+            df = load_symbol_data(f, index=0, header_row=0)
+        except IndexError:
+            df = load_symbol_data(f, index=0, header_row=1)
+
+        if year not in data:
+            data[year] = 12 * [None]
+        data[year][month] = df[price]
+
+    return data
 
 
 class LoadingException(Exception):

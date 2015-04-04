@@ -5,7 +5,7 @@ from pandas import Timestamp
 from pandas.util.testing import assert_frame_equal
 
 import data_loader as dl
-from test_sources import CHAINS_DIR, DATA_DIR, INTRADAY_DIR, \
+from test_sources import CHAINS_DIR, DATA_DIR, FUTURES_DIR, INTRADAY_DIR, \
     INTRADAY_SP500_DIR, SYMBOL_LIST, SYMBOL_LIST_FILE, TEST_CSV_FILE, \
     TEST_REVERSED_CSV_FILE
 
@@ -97,7 +97,6 @@ class TestDataLoader(unittest.TestCase):
         self.assertEqual(391, len(data['AA']['20140811']))
         self.assertEqual(391, len(data['AAPL']['20140818']))
 
-
     def test_get_dates(self):
         self.assertListEqual(
             ['20140811', '20140812', '20140813', '20140814', '20140815',
@@ -115,6 +114,13 @@ class TestDataLoader(unittest.TestCase):
         self.assertListEqual(
             ['20140812', '20140813', '20140814', '20140815'],
             dl.get_dates(INTRADAY_SP500_DIR, '20140812', '20140815'))
+
+    def test_load_vix_futures_prices(self):
+        data = dl.load_vix_futures_prices(FUTURES_DIR)
+        self.assertTrue(2014 in data)
+        self.assertTrue(2010 in data)
+        self.assertEqual(156, len(data[2010][0]))
+        self.assertEqual(188, len(data[2014][11]))
 
 
 class TestException(Exception):
