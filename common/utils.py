@@ -3,9 +3,24 @@ from datetime import timedelta
 import math
 
 import numpy as np
+import pandas as pd
 
 
 DATE_FORMAT = '%Y-%m-%d'
+
+
+def np_print_full(*args, **kwargs):
+    from pprint import pprint
+    opt = np.get_printoptions()
+    np.set_printoptions(threshold='nan')
+    pprint(*args, **kwargs)
+    np.set_printoptions(**opt)
+
+
+def pd_print_full(x):
+    pd.set_option('display.max_rows', len(x))
+    print(x)
+    pd.reset_option('display.max_rows')
 
 
 def create_date(date):
@@ -45,8 +60,8 @@ def ffill(data):
     return data
 
 
-def lag(data, empty_term=0.):
-    lagged = np.roll(data, 1)
+def lag(data, empty_term=0., axis=0):
+    lagged = np.roll(data, 1, axis=axis)
     lagged[0] = empty_term
     return lagged
 
@@ -87,6 +102,7 @@ def calculate_sharpe_ratio(returns, annulisation_factor=252.0):
     return (np.mean(returns) / np.std(returns)) * \
            math.sqrt(annulisation_factor)
 
+
 def calculate_sortino_ratio_with_freq(returns, annualisation_factor=252.0):
     """
     Modified Sortino ratio that takes into account the frequency in addition
@@ -103,6 +119,11 @@ def calculate_sortino_ratio_with_freq(returns, annualisation_factor=252.0):
 def calculate_sortino_ratio(returns, annualisation_factor=252.0):
     return (np.mean(returns) / np.std(returns[np.where(returns < 0.)])) \
            * math.sqrt(annualisation_factor)
+
+
+def calculate_kelly_ratio(returns, annualisation_factor=252.0):
+    return (np.mean(returns) * annualisation_factor) / \
+        (np.std(returns) * math.sqrt(annualisation_factor))**2
 
 
 def calculate_max_drawdown(returns):

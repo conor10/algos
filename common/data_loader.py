@@ -147,10 +147,14 @@ def get_dates(directory, start_date=None, end_date=None):
     return all_dates[start_idx:end_idx]
 
 
-def load_vix_futures_prices(source_dir, price='Close', start_year=2008):
+def load_vix_futures_prices(source_dir, price='Close',
+                            start_year=2005, end_year=2099):
     """
     Dictionary of dataframe price data in format
     CFE_[M][YY]_VX.csv where M is []
+
+    start_year and end_year parameters refer to futures we are interested in,
+    not dates we have price data for.
 
     :return data[YYYY][M] = dataframe
     Where YYYY is expiry year, M is expiry month in range [0, 11]
@@ -164,7 +168,7 @@ def load_vix_futures_prices(source_dir, price='Close', start_year=2008):
         month = FUTURES_MONTHS.index(filename[4])
         year = int('20' + filename[5] + filename[6])
 
-        if year < start_year:
+        if year < start_year or year > end_year:
             continue
 
         try:

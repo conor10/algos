@@ -54,6 +54,11 @@ class TestUtils(unittest.TestCase):
             np.array([np.NAN, 1, 2, 3, 4]),
             utils.lag(np.array([1., 2., 3., 4., 5.]), np.NAN))
 
+    def test_lag_multiple_vec(self):
+        np_utils.assert_array_equal(
+            np.array([[0, 0], [1, 4], [2, 5]]),
+            utils.lag(np.array([[1, 4], [2, 5], [3, 6]])))
+
     def test_calculate_returns(self):
         positions = np.array(
             [0., 15., 15., 27.5, 27.5, 17.5, 32.5, 32.5, 10., -7.5])
@@ -89,6 +94,11 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(
             -9.2268702784386836,
             utils.calculate_sortino_ratio_with_freq(self.RETURNS))
+
+    def test_kelly_ratio(self):
+        returns = np.array([0.05, -0.06, 0.05, 0.04, -0.05])
+        self.assertEqual(2.3961661341853042,
+                         utils.calculate_kelly_ratio(returns))
 
     def test_calculate_max_drawdown(self):
         compound_returns = (1. + self.RETURNS).cumprod() - 1.

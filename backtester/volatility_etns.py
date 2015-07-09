@@ -19,7 +19,7 @@ SYMBOL_FILE = os.path.join(DATA_DIR, 'symbols.txt')
 PRICE = 'Adj Close'
 
 DEBUG = False
-PLOT_CHARTS = False
+PLOT_CHARTS = True
 
 
 """
@@ -46,35 +46,45 @@ def main():
     # end_date = '14/5/2013'
 
     # Mojito 3 paper
-    # start_date = '3/1/2011'
-    # end_date = '16/12/2013'
+    start_date = '3/1/2011'
+    end_date = '16/12/2013'
+
+    start_date = '01/01/2012'
+    # end_date = '31/12/2012'
+
     # start_date = '3/1/2009'
     # end_date = '16/12/2013'
 
     # VT Trading 2ed came out on April 1st 2013
-    start_date = '1/2/2013'
+    # start_date = '1/2/2013'
     end_date = '1/1/2015'
 
     prices = load_prices(symbols, start_date, end_date)
     ivts = prices['^VIX'] / prices['^VXV']
-    vix_future_30 = load_vix_future_30(futures_prices, prices.index)
-    # vix_future_45 = load_vix_future_30(futures_prices, prices.index)
+    vix_future_30 = load_vix_future(
+        get_vix_future_30, futures_prices, prices.index)
+    vix_future_45 = load_vix_future(
+        get_vix_future_45, futures_prices, prices.index)
 
     vr_0_30_ts = prices['^VIX'] / vix_future_30
-    # vr_0_45_ts = prices['^VIX'] / vix_future_45
+    vr_0_45_ts = prices['^VIX'] / vix_future_45
 
     strategies = [
-        ('Mojito', get_mojito_ratio, ivts),
-        ('Mojito Aggressive', get_mojito_aggressive_ratio, ivts),
-        ('Dynamic VIX', get_dynamic_vix_ratio, ivts),
-        ('Fixed VIX', get_fixed_vix_ratio, ivts),
-        ('Mojito 2.0 Medium', get_mojito_2_0_medium_ratio, ivts),
-        ('Mojito 2.0 Aggressive', get_mojito_2_0_aggressive_ratio, ivts),
-        ('Mojito 2.0 Medium 30TS', get_mojito_2_0_medium_30ts_ratio,
-        vr_0_30_ts),
-        ('Mojito 2.0 Aggressive 30TS', get_mojito_2_0_aggressive_30ts_ratio,
-        vr_0_30_ts),
-        ('Mojito 3.0 VIX/VXV', get_mojito_3_0_vix_vxv_ratio, ivts, True)
+        # ('Mojito', get_mojito_ratio, ivts, True),
+        # ('Mojito Aggressive', get_mojito_aggressive_ratio, ivts),
+        # ('Dynamic VIX', get_dynamic_vix_ratio, ivts),
+        # ('Fixed VIX', get_fixed_vix_ratio, ivts),
+        # ('Mojito 2.0 Medium', get_mojito_2_0_medium_ratio, ivts),
+        # ('Mojito 2.0 Aggressive', get_mojito_2_0_aggressive_ratio, ivts),
+        # ('Mojito 2.0 Medium 30TS', get_mojito_2_0_medium_30ts_ratio,
+        # vr_0_30_ts),
+        # ('Mojito 2.0 Aggressive 30TS', get_mojito_2_0_aggressive_30ts_ratio,
+        # vr_0_30_ts),
+        # ('Mojito 3.0 VIX/VXV', get_mojito_3_0_vix_vxv_ratio, ivts),
+        # ('Mojito 3.0 VIX/VX30', get_mojito_3_0_vix_vx30_ratio,
+        #  vr_0_30_ts),
+        ('Mojito 3.0 VIX/VX45', get_mojito_3_0_vix_vx45_ratio,
+         vr_0_45_ts),
     ]
 
     results = []
@@ -86,26 +96,26 @@ def main():
         plot_chart = strategy[3] if len(strategy) == 4 else False
         # date_range = strategy[2]
 
-        retuns, cash = run(prices, ts, ratio_func, start_cash)
+        returns, cash = run(prices, ts, ratio_func, start_cash)
 
-        real_returns, final_return, sharpe_ratio, sortino_ratio, \
+        real_returns, final_return, sharpe_ratio, sortino_ratio, kelly_ratio, \
         max_dd, max_duration, max_dd_idx, max_duration_idx, hwm_idx = \
-            calc_performance(retuns, start_cash)
+            calc_performance(returns, start_cash)
 
         if PLOT_CHARTS or plot_chart:
             print_results(final_return, sharpe_ratio, sortino_ratio,
-                          max_dd, max_duration)
+                          kelly_ratio, max_dd, max_duration)
             plot_results(name, real_returns, cash, max_dd, max_duration,
                          max_dd_idx, max_duration_idx, hwm_idx)
 
         results.append([name, final_return, sharpe_ratio, sortino_ratio,
-                        max_dd * 100., max_duration])
+                        kelly_ratio, max_dd * 100., max_duration])
 
     print tabulate(
         results,
         floatfmt=".2f",
-        headers=['Strategy', 'Returns', 'Sharpe Ratio',
-                 'Sortino Ratio', 'Max DD', 'Max DD Duration'])
+        headers=['Strategy', 'Returns', 'Sharpe Ratio', 'Sortino Ratio',
+                 'Kelly Ratio', 'Max DD', 'Max DD Duration'])
 
 
 def run(prices, ts, ratio_func, start_cash):
@@ -156,6 +166,12 @@ def run(prices, ts, ratio_func, start_cash):
                      + cash
     returns = (vxx_change + vxz_change) / notional_value
 
+    # np.save('/Users/Conor/code/blog/python/kelly/returns.npy', returns)
+    np.savetxt('/Users/Conor/code/blog/python/returns/cash.txt', cash)
+    # np.savetxt('/Users/Conor/code/blog/python/returns/positions.txt', positions)
+    # np.savetxt('/Users/Conor/code/blog/python/returns/stockA.txt', prices['VXX'] / 5.)
+    # np.savetxt('/Users/Conor/code/blog/python/returns/stockB.txt', prices['VXZ'] / 5.)
+
     return returns, cash
 
 
@@ -168,18 +184,22 @@ def calc_performance(returns, start_cash):
     final_return = (np.exp(log_returns[-1]) - 1.0) * 100.
     sharpe_ratio = utils.calculate_sharpe_ratio(returns)
     sortino_ratio = utils.calculate_sortino_ratio(returns.values)
+    kelly_ratio = utils.calculate_kelly_ratio(returns)
 
     max_dd, max_duration, max_dd_idx, max_duration_idx, hwm_idx = \
         utils.calculate_max_drawdown_log(log_returns)
 
     return real_returns, final_return, sharpe_ratio, sortino_ratio, \
-           max_dd, max_duration, max_dd_idx, max_duration_idx, hwm_idx
+           kelly_ratio, max_dd, max_duration, max_dd_idx, max_duration_idx, \
+           hwm_idx
 
 
-def print_results(final_return, sharpe_ratio, sortino_ratio, max_dd, max_duration):
+def print_results(final_return, sharpe_ratio, sortino_ratio, kelly_ratio,
+                  max_dd, max_duration):
     print('Sharpe Ratio: {0:.2f}'.format(sharpe_ratio))
     print('Sortino Ratio: {0:.2f}'.format(sortino_ratio))
     print('Returns: {:.2f}%'.format(final_return))
+    print('Kelly Ratio: {:.2f}%'.format(kelly_ratio))
     print('Max drawdown: {:.2f}%, max duration: {} days'
           .format(max_dd * 100.0, max_duration))
 
@@ -256,16 +276,15 @@ def load_prices(symbols, start_date, end_date):
     return df
 
 
-def load_futures_prices(start_year=None, end_year=None):
-    # TODO: Figure out if year bounds will work
-    return dl.load_vix_futures_prices(FUTURES_DATA_DIR)
+def load_futures_prices():
+    return dl.load_vix_futures_prices(FUTURES_DATA_DIR, start_year=2008)
 
 
-def load_vix_future_30(futures_prices, dates):
+def load_vix_future(func, futures_prices, dates):
     ratios = np.empty(len(dates))
 
     for i in range(0, len(ratios)):
-        ratios[i] = get_vix_future_30(futures_prices, dates[i].date())
+        ratios[i] = func(futures_prices, dates[i].date())
     return ratios
 
 
@@ -281,14 +300,14 @@ def get_vix_future_30(futures_prices, curr_date):
 
 
 def get_vix_future_45(futures_prices, curr_date):
-    # TODO: Implement
-    expiry_date = get_next_expiry_date(curr_date)
+    next_expiry_date = get_next_expiry_date(curr_date)
+    expiry_date = get_next_expiry_date(next_expiry_date + dt.timedelta(days=1))
 
-    prices = get_futures_prices(futures_prices, curr_date, expiry_date, 3)
+    prices = get_futures_prices(futures_prices, curr_date, expiry_date, 2)
     near_date_maturity = (expiry_date - curr_date).days
 
-    return (near_date_maturity / 30.) * prices[0] + \
-           ((30. - near_date_maturity) / 30.) * prices[1]
+    return (near_date_maturity / 45.) * prices[0] + \
+           ((45. - near_date_maturity) / 45.) * prices[1]
 
 
 def get_futures_prices(futures_prices, curr_date, expiry_date, month_count):
@@ -502,6 +521,28 @@ def get_mojito_3_0_vix_vxv_ratio(ts):
     elif ts <= 0.94:
         return np.array((-0.16, 0.84))
     elif ts <= 1.02:
+        return np.array((-0.03, 0.97))
+    else:
+        return np.array((0.79, 0.21))
+
+
+def get_mojito_3_0_vix_vx30_ratio(ts):
+    if ts <= 0.92:
+        return np.array((-0.60, 0.40))
+    elif ts <= 0.94:
+        return np.array((-0.16, 0.84))
+    elif ts <= 1.10:
+        return np.array((-0.03, 0.97))
+    else:
+        return np.array((0.79, 0.21))
+
+
+def get_mojito_3_0_vix_vx45_ratio(ts):
+    if ts <= 0.91:
+        return np.array((-0.60, 0.40))
+    elif ts <= 1.0:
+        return np.array((-0.16, 0.84))
+    elif ts <= 1.10:
         return np.array((-0.03, 0.97))
     else:
         return np.array((0.79, 0.21))
